@@ -291,16 +291,24 @@ Configuration:
 - KL coefficient: 0.1
 - Training steps: 5000
 
-### Phase 3: Oracle-Augmented GRPO
+### Phase 3: Oracle-Based GRPO
 
 ```bash
-python scripts/train_grpo.py --config configs/oracle_grpo.yaml
+python scripts/train_grpo_oracle.py \
+  --supervised-checkpoint checkpoints/supervised_relabeled/best.safetensors \
+  --checkpoint-dir checkpoints/grpo_oracle \
+  --steps 500 \
+  --num-generations 8 \
+  --kl-coef 0.05
 ```
 
 Configuration:
-- Same as Phase 2
-- Oracle weight: 0.5
-- Simulation steps: 100
+- Uses boolean network simulator as reward (not self-classification)
+- Diversity bonus to prevent mode collapse
+- KL coefficient: 0.05 (lower than self-classification to allow exploration)
+- Generations per phenotype: 8-12
+
+**Note**: Self-classification GRPO (`train_grpo.py`) causes mode collapse. Use oracle-based GRPO for better results.
 
 ### Computational Requirements
 
@@ -340,7 +348,9 @@ Through a first-principles approach combining exhaustive enumeration and constra
 | Method | Oracle Accuracy | Diversity | Notes |
 |--------|----------------|-----------|-------|
 | Original Supervised | ~20% | High | Learned surface patterns only |
-| Re-labeled + Expert Iteration | 33.5% | Medium | Improving with iterations |
+| Self-Classification GRPO | Mode collapse | - | Collapses to single phenotype |
+| Oracle GRPO | 43.3% | Medium | Uses simulator as reward |
+| Expert Iteration (10 rounds) | 50.8% | Medium | Best neural approach |
 | **Template-Based (Verified)** | **99.8%** | **High** | Uses verified topologies |
 
 ### The Key Insight: Topology ≠ Dynamics
@@ -419,11 +429,43 @@ For training neural models to generate correct circuits:
 | Iteration | Oracle Accuracy | Training Set Size |
 |-----------|----------------|-------------------|
 | 0 (baseline) | 19% | - |
-| 1 | 19% | 1,837 |
-| 2 | 26% | 1,878 |
-| 3 | 30% | 1,891 |
+| 1 | 35% | 2,054 |
+| 5 | 41% | 2,166 |
+| 10 | 50.8% | 2,257 |
 
 The model improves by learning from verified circuits combined with oracle-filtered generations.
+
+### GRPO Training Results
+
+We explored multiple GRPO variants for reinforcement learning:
+
+**Self-Classification GRPO** (original approach):
+- Uses model's own likelihood as reward signal
+- Problem: Mode collapse to single phenotype ("stable")
+- The model learns to generate sequences it can classify, not correct circuits
+
+**Oracle GRPO** (improved approach):
+- Uses boolean network simulator as ground truth reward
+- Achieves 43.3% overall accuracy
+- Per-phenotype: oscillator 96.7%, stable 96.7%, amplifier 66.7%
+- Still struggles with toggle_switch (0%), pulse_generator (0%)
+
+**Key GRPO Findings**:
+1. Self-classification reward causes mode collapse because the model optimizes for self-consistency rather than correctness
+2. Oracle reward prevents collapse but can't discover new topological patterns
+3. GRPO can only improve what the model already knows how to generate
+4. For phenotypes requiring specific structures (mutual inhibition, IFFL), GRPO alone is insufficient
+
+**Per-Phenotype Neural Model Accuracy** (Best: Expert Iteration + GRPO):
+
+| Phenotype | Neural | Template |
+|-----------|--------|----------|
+| oscillator | 80.0% | 100% |
+| toggle_switch | 22.0% | 100% |
+| adaptation | 30.0% | 100% |
+| pulse_generator | 30.0% | 100% |
+| amplifier | 54.0% | 100% |
+| stable | 88.0% | 100% |
 
 ### Key Findings
 
@@ -431,11 +473,13 @@ The model improves by learning from verified circuits combined with oracle-filte
 
 2. **Template-based generation achieves near-perfect accuracy**: Using only verified topologies guarantees correctness while maintaining diversity through gene assignment.
 
-3. **Expert iteration improves neural models**: Combining verified circuits with oracle feedback trains models to generate correct patterns.
+3. **Neural models plateau at ~50% accuracy**: Even with expert iteration and GRPO, neural models struggle with phenotypes requiring specific topological structures. This is a fundamental limitation: neural models learn smooth distributions that assign probability mass to invalid structures.
 
-4. **The constitutive rule is biologically accurate**: Genes with only inhibitors should be ON by default (constitutive expression), which correctly models transcriptional regulation.
+4. **GRPO can only refine, not discover**: Reinforcement learning improves what the model already knows but cannot discover entirely new structural patterns. For toggle_switch (requires mutual inhibition) and pulse_generator (requires IFFL), neural models need explicit structural guidance.
 
-5. **Small circuits are sufficient**: Most phenotypes can be achieved with 2-3 genes, making exhaustive enumeration tractable.
+5. **The constitutive rule is biologically accurate**: Genes with only inhibitors should be ON by default (constitutive expression), which correctly models transcriptional regulation.
+
+6. **Small circuits are sufficient**: Most phenotypes can be achieved with 2-3 genes, making exhaustive enumeration tractable.
 
 ### Lessons Learned
 
@@ -443,6 +487,8 @@ The model improves by learning from verified circuits combined with oracle-filte
 - **Exhaustive testing is tractable for small circuits**: 3^9 = 19,683 is easily testable
 - **Constrained generation beats unconstrained**: Enforcing necessary conditions guarantees correctness
 - **Diversity and accuracy are not trade-offs**: Template-based generation achieves both through combinatorial gene assignment
+- **RL can't discover structure**: GRPO and similar methods optimize existing behavior but can't discover fundamentally new topological patterns
+- **Oracle reward beats self-classification**: Using ground truth (simulator) as reward prevents mode collapse that occurs with self-classification
 
 ---
 
@@ -465,7 +511,10 @@ ouroboros/
 │   ├── relabel_data.py         # Re-label with fixed oracle
 │   ├── enumerate_circuits.py   # Exhaustive circuit enumeration
 │   ├── train_supervised.py     # Supervised pretraining
+│   ├── train_grpo.py           # Self-classification GRPO
+│   ├── train_grpo_oracle.py    # Oracle-based GRPO (avoids mode collapse)
 │   ├── train_expert_iteration.py  # Expert iteration training
+│   ├── train_balanced_supervised.py  # Balanced verified circuit training
 │   ├── evaluate.py             # Standard evaluation
 │   ├── evaluate_constrained.py # Constrained generation evaluation
 │   └── generate.py             # Circuit generation
@@ -490,7 +539,9 @@ ouroboros/
 └── checkpoints/                # Trained models
     ├── supervised/
     ├── supervised_relabeled/
-    └── expert_iteration/
+    ├── grpo_oracle/            # Oracle-based GRPO (43.3%)
+    ├── expert_iteration/
+    └── expert_grpo_v2/         # Expert iteration + GRPO (50.8%)
 ```
 
 ---
