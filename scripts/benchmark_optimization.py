@@ -257,112 +257,43 @@ class ClassicalBenchmark:
         return circuits, elapsed, total_evaluations
 
 
-# Topology classifier components (inline to avoid import issues)
-PHENOTYPE_TO_ID = {
-    'oscillator': 0, 'toggle_switch': 1, 'adaptation': 2,
-    'pulse_generator': 3, 'amplifier': 4, 'stable': 5,
-}
-ID_TO_PHENOTYPE = {v: k for k, v in PHENOTYPE_TO_ID.items()}
-
-
-def extract_topology_features(circuit: dict) -> np.ndarray:
-    """Extract 32 topology features from circuit for neural classification."""
-    edges = circuit.get('edges', [])
-    n_genes = circuit.get('n_genes', 2)
-    features = circuit.get('features', {})
-
-    # If no edges in expected format, try to extract from interactions
-    if not edges and 'interactions' in circuit:
-        gene_map = {}
-        edges = []
-        for inter in circuit['interactions']:
-            src, tgt = inter['source'].lower(), inter['target'].lower()
-            if src not in gene_map:
-                gene_map[src] = len(gene_map)
-            if tgt not in gene_map:
-                gene_map[tgt] = len(gene_map)
-            etype = 1 if inter['type'] == 'activates' else 2
-            edges.append((gene_map[src], gene_map[tgt], etype))
-        n_genes = len(gene_map) if gene_map else 2
-
-    n_edges = len(edges)
-    n_activation = sum(1 for e in edges if e[2] == 1)
-    n_inhibition = sum(1 for e in edges if e[2] == 2)
-    n_self_loops = sum(1 for e in edges if e[0] == e[1])
-    n_self_inhib = sum(1 for e in edges if e[0] == e[1] and e[2] == 2)
-    n_self_act = sum(1 for e in edges if e[0] == e[1] and e[2] == 1)
-
-    # Mutual inhibition check
-    has_mutual_inhib = False
-    for s, t, e in edges:
-        if s != t and e == 2:
-            for s2, t2, e2 in edges:
-                if s2 == t and t2 == s and e2 == 2:
-                    has_mutual_inhib = True
-                    break
-
-    # Activation cascade check
-    has_cascade = False
-    for s, t, e in edges:
-        if s != t and e == 1:
-            for s2, t2, e2 in edges:
-                if s2 == t and t2 != s and e2 == 1:
-                    has_cascade = True
-                    break
-
-    # IFFL check
-    has_iffl = False
-    for gene_a in range(n_genes):
-        targets_act = {t for s, t, e in edges if s == gene_a and e == 1 and t != gene_a}
-        for gene_b in targets_act:
-            for gene_c in targets_act:
-                if gene_b != gene_c:
-                    if any(s == gene_b and t == gene_c and e == 2 for s, t, e in edges):
-                        has_iffl = True
-
-    # Build feature vector (32 features)
-    feat = [
-        float(n_genes), float(n_edges), float(n_activation), float(n_inhibition),
-        float(n_self_loops), float(n_self_inhib), float(n_self_act),
-        float(has_mutual_inhib), float(has_cascade), float(has_iffl),
-        float(n_self_inhib > 0), float(n_activation) / max(n_edges, 1),
-        float(n_inhibition) / max(n_edges, 1), float(n_edges) / max(n_genes * n_genes, 1),
-        float(features.get('has_self_activation', n_self_act > 0)),
-        float(features.get('has_self_inhibition', n_self_inhib > 0)),
-        float(features.get('has_mutual_inhibition', has_mutual_inhib)),
-        float(features.get('has_activation_cascade', has_cascade)),
-        float(features.get('has_inhibition_cycle', False)),
-        float(features.get('has_iffl', has_iffl)),
-        float(features.get('inhibition_cycle_odd', False)),
-        float(n_self_inhib >= 2),  # Multiple self-inhibiting genes
-        float(has_mutual_inhib and n_genes == 2),  # Classic toggle
-        float(has_cascade and not has_mutual_inhib and n_self_inhib == 0),  # Amplifier pattern
-        float(not any([n_self_inhib > 0, has_mutual_inhib, has_iffl])),  # Stable pattern
-        float(n_self_inhib > 0 and not has_mutual_inhib and not has_iffl),  # Oscillator pattern
-        float(n_activation == 0),  # No activation
-        float(n_inhibition == 0),  # No inhibition
-        float(n_self_loops == n_edges),  # All self-loops
-        float(n_self_loops == 0),  # No self-loops
-        float(n_genes == 2), float(n_genes == 3),
-    ]
-    return np.array(feat, dtype=np.float32)
+# Import feature extraction from train_topology_final for 92%+ accuracy
+from scripts.train_topology_final import (
+    extract_combined_features as extract_topology_features,
+    PHENOTYPE_TO_ID,
+    ID_TO_PHENOTYPE,
+)
 
 
 class TopologyClassifier(nn.Module):
-    """Simple MLP classifier for topology features."""
+    """Residual MLP classifier for topology features (matches train_topology_final.py)."""
 
-    def __init__(self, input_dim: int = 32, hidden_dim: int = 128):
+    def __init__(self, input_dim: int = 48, hidden_dim: int = 192, n_layers: int = 4):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+        self.input_embed = nn.Linear(input_dim, hidden_dim)
+        self.input_norm = nn.LayerNorm(hidden_dim)
+
+        self.blocks = []
+        for _ in range(n_layers):
+            self.blocks.append({
+                'linear1': nn.Linear(hidden_dim, hidden_dim),
+                'linear2': nn.Linear(hidden_dim, hidden_dim),
+                'norm': nn.LayerNorm(hidden_dim),
+            })
+
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim // 2),
             nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, 6),  # 6 phenotypes
+            nn.Linear(hidden_dim // 2, 6),
         )
 
     def __call__(self, x):
-        return self.net(x)
+        h = nn.gelu(self.input_norm(self.input_embed(x)))
+        for block in self.blocks:
+            residual = h
+            h = nn.gelu(block['linear1'](h))
+            h = block['norm'](block['linear2'](h) + residual)
+        return self.head(h)
 
 
 class TopologyBenchmark:
@@ -381,33 +312,37 @@ class TopologyBenchmark:
             self.model = None
 
     def _train_classifier(self) -> TopologyClassifier:
-        """Train classifier on verified circuits."""
+        """Train classifier on verified circuits (full training for 92%+ accuracy)."""
         features_list = []
         labels = []
 
         for phenotype, circuits in self.circuits_by_phenotype.items():
             if phenotype not in PHENOTYPE_TO_ID:
                 continue
-            for circuit in circuits[:500]:  # Sample for speed
+            for circuit in circuits:  # Use all data
                 feat = extract_topology_features(circuit)
                 features_list.append(feat)
                 labels.append(PHENOTYPE_TO_ID[phenotype])
 
-        X = mx.array(np.stack(features_list))
-        y = mx.array(labels)
+        print(f"    Training topology classifier on {len(features_list)} circuits...")
 
-        model = TopologyClassifier(input_dim=32, hidden_dim=128)
-        optimizer = optim.Adam(learning_rate=1e-3)
+        model = TopologyClassifier(input_dim=48, hidden_dim=192, n_layers=4)
+        optimizer = optim.Adam(learning_rate=5e-4)
+
+        def focal_loss(logits, labels, gamma=2.0):
+            ce = nn.losses.cross_entropy(logits, labels, reduction='none')
+            pt = mx.exp(-ce)
+            return mx.mean(((1 - pt) ** gamma) * ce)
 
         def loss_fn(model, x, y):
             logits = model(x)
-            return mx.mean(nn.losses.cross_entropy(logits, y))
+            return focal_loss(logits, y)
 
         loss_and_grad = nn.value_and_grad(model, loss_fn)
 
-        # Training (200 steps for better accuracy)
-        batch_size = 128
-        for _ in range(200):
+        # Full training (5000 steps for 90%+ accuracy)
+        batch_size = 96
+        for step in range(5000):
             idx = np.random.choice(len(features_list), batch_size)
             batch_x = mx.array(np.stack([features_list[i] for i in idx]))
             batch_y = mx.array([labels[i] for i in idx])
