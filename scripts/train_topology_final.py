@@ -63,16 +63,28 @@ def analyze_cycles(edges: List, n_genes: int) -> Dict:
         'has_length_1_inhib': False,
         'has_length_2_inhib_cycle': False,
         'has_length_3_plus_inhib_cycle': False,
+        # New features for better oscillator detection
+        'has_all_inhib_cycle': False,  # Cycle where ALL edges are inhibitions
+        'has_all_act_cycle': False,    # Cycle where ALL edges are activations
+        'has_mixed_cycle': False,      # Cycle with both act and inhib
+        'n_all_inhib_cycles': 0,
+        'max_cycle_len': 0,
     }
+
+    non_self_cycles = [c for c in cycles if len(c) >= 2]
 
     for cycle in cycles:
         cycle_len = len(cycle)
         n_inhib = 0
+        n_act = 0
         for k in range(cycle_len):
             src = cycle[k]
             tgt = cycle[(k + 1) % cycle_len]
-            if G.has_edge(src, tgt) and G.edges[src, tgt].get('type') == 2:
-                n_inhib += 1
+            if G.has_edge(src, tgt):
+                if G.edges[src, tgt].get('type') == 2:
+                    n_inhib += 1
+                elif G.edges[src, tgt].get('type') == 1:
+                    n_act += 1
 
         if n_inhib % 2 == 1:
             info['n_odd_inhib_cycles'] += 1
@@ -84,13 +96,109 @@ def analyze_cycles(edges: List, n_genes: int) -> Dict:
         elif cycle_len >= 3 and n_inhib > 0:
             info['has_length_3_plus_inhib_cycle'] = True
 
+        # New cycle type detection (for non-self-loops)
+        if cycle_len >= 2:
+            info['max_cycle_len'] = max(info['max_cycle_len'], cycle_len)
+            if n_inhib == cycle_len:  # All edges are inhibitions
+                info['has_all_inhib_cycle'] = True
+                info['n_all_inhib_cycles'] += 1
+            elif n_act == cycle_len:  # All edges are activations
+                info['has_all_act_cycle'] = True
+            elif n_inhib > 0 and n_act > 0:  # Mixed
+                info['has_mixed_cycle'] = True
+
     return info
+
+
+def analyze_advanced_topology(edges: List, n_genes: int) -> Dict:
+    """
+    Advanced topology analysis for oscillator discrimination.
+
+    Key insights from data analysis:
+    - Oscillators have more self-inhibiting genes (44% have ≥2)
+    - Oscillators have more all-inhibition cycles (30% vs 16% for adaptation)
+    - Adaptation has more coherent feedforward loops (26% vs 11%)
+    - Adaptation has more "no cross-inhibition" patterns (28% vs 7%)
+    """
+    import networkx as nx
+
+    G = nx.DiGraph()
+    G.add_nodes_from(range(n_genes))
+    for src, tgt, etype in edges:
+        G.add_edge(src, tgt, type=etype)
+
+    # Count edge types
+    n_self_inhib = sum(1 for s, t, e in edges if s == t and e == 2)
+    n_self_act = sum(1 for s, t, e in edges if s == t and e == 1)
+    n_cross_inhib = sum(1 for s, t, e in edges if s != t and e == 2)
+    n_cross_act = sum(1 for s, t, e in edges if s != t and e == 1)
+
+    # Genes with self-inhibition
+    genes_with_self_inhib = {s for s, t, e in edges if s == t and e == 2}
+    self_inhib_gene_ratio = len(genes_with_self_inhib) / n_genes if n_genes > 0 else 0
+
+    # Mutual patterns
+    has_mutual_inhib = False
+    has_mutual_act = False
+    for s, t, e in edges:
+        if s != t:
+            for s2, t2, e2 in edges:
+                if s2 == t and t2 == s:
+                    if e == 2 and e2 == 2:
+                        has_mutual_inhib = True
+                    if e == 1 and e2 == 1:
+                        has_mutual_act = True
+
+    # Coherent feedforward loop: A->B, A->C, B->C (all activation)
+    has_cfl = False
+    for gene_a in range(n_genes):
+        targets_act = {t for s, t, e in edges if s == gene_a and e == 1 and t != gene_a}
+        for gene_b in targets_act:
+            for gene_c in targets_act:
+                if gene_b != gene_c:
+                    if any(s == gene_b and t == gene_c and e == 1 for s, t, e in edges):
+                        has_cfl = True
+
+    # IFFL: A->B, A->C, B-|C
+    has_iffl = False
+    for gene_a in range(n_genes):
+        targets_act = {t for s, t, e in edges if s == gene_a and e == 1 and t != gene_a}
+        for gene_b in targets_act:
+            for gene_c in targets_act:
+                if gene_b != gene_c:
+                    if any(s == gene_b and t == gene_c and e == 2 for s, t, e in edges):
+                        has_iffl = True
+
+    # Repressilator-like: chain of inhibitions forming a cycle (A-|B, B-|C, C-|A)
+    has_repressilator = False
+    if n_genes >= 3:
+        inhib_edges = [(s, t) for s, t, e in edges if e == 2 and s != t]
+        for (s1, t1) in inhib_edges:
+            for (s2, t2) in inhib_edges:
+                if s2 == t1 and t2 != s1:
+                    for (s3, t3) in inhib_edges:
+                        if s3 == t2 and t3 == s1:
+                            has_repressilator = True
+
+    return {
+        'n_self_inhib': n_self_inhib,
+        'n_self_act': n_self_act,
+        'n_cross_inhib': n_cross_inhib,
+        'n_cross_act': n_cross_act,
+        'self_inhib_gene_ratio': self_inhib_gene_ratio,
+        'has_mutual_inhib': has_mutual_inhib,
+        'has_mutual_act': has_mutual_act,
+        'has_cfl': has_cfl,
+        'has_iffl': has_iffl,
+        'has_repressilator': has_repressilator,
+        'n_genes_with_self_inhib': len(genes_with_self_inhib),
+    }
 
 
 def extract_combined_features(circuit: Dict) -> np.ndarray:
     """
     Extract combined features from oracle + enhanced analysis.
-    Total: 32 features
+    Total: 48 features (expanded for better oscillator detection)
     """
     features = circuit.get('features', {})
     edges = circuit.get('edges', [])
@@ -125,7 +233,7 @@ def extract_combined_features(circuit: Dict) -> np.ndarray:
         float(n_self_loops),
     ]
 
-    # [14-18] Cycle analysis (5)
+    # [14-22] Enhanced cycle analysis (9) - expanded with new features
     cycle_info = analyze_cycles(edges, n_genes)
 
     cycle_feats = [
@@ -134,22 +242,55 @@ def extract_combined_features(circuit: Dict) -> np.ndarray:
         float(cycle_info['has_length_1_inhib']),
         float(cycle_info['has_length_2_inhib_cycle']),
         float(cycle_info['has_length_3_plus_inhib_cycle']),
+        # New cycle features
+        float(cycle_info['has_all_inhib_cycle']),  # Key for oscillator
+        float(cycle_info['has_all_act_cycle']),
+        float(cycle_info['has_mixed_cycle']),
+        float(cycle_info['n_all_inhib_cycles']),
     ]
 
-    # [19-24] Phenotype-specific indicators (6)
-    phenotype_indicators = [
-        # Oscillator: odd parity or self-inhibition
-        float(features.get('inhibition_cycle_odd', False) or features.get('has_self_inhibition', False)),
-        float(cycle_info['n_odd_inhib_cycles'] > 0),
+    # [23-33] Advanced topology features (11) - new for oscillator discrimination
+    adv_topo = analyze_advanced_topology(edges, n_genes)
 
-        # Toggle switch: mutual inhibition without odd cycles
-        float(features.get('has_mutual_inhibition', False) and not features.get('inhibition_cycle_odd', False)),
+    advanced_feats = [
+        float(adv_topo['n_self_inhib']),
+        float(adv_topo['n_cross_inhib']),
+        float(adv_topo['n_cross_act']),
+        float(adv_topo['self_inhib_gene_ratio']),
+        float(adv_topo['has_mutual_act']),
+        float(adv_topo['has_cfl']),  # Coherent feedforward (adaptation indicator)
+        float(adv_topo['has_repressilator']),  # True repressilator pattern
+        float(adv_topo['n_genes_with_self_inhib']),
+        # Ratios
+        float(adv_topo['n_cross_inhib']) / max(adv_topo['n_cross_inhib'] + adv_topo['n_cross_act'], 1),
+        float(adv_topo['n_cross_act'] == 0),  # No cross-activation (oscillator-like)
+        float(adv_topo['n_cross_inhib'] == 0),  # No cross-inhibition (adaptation-like)
+    ]
+
+    # [34-41] Phenotype-specific indicators (8) - improved for oscillator
+    phenotype_indicators = [
+        # Oscillator indicators (improved)
+        # Key: self-inhib without mutual-inhib and without CFL indicates oscillator
+        float(features.get('has_self_inhibition', False) and
+              not features.get('has_mutual_inhibition', False) and
+              not adv_topo['has_cfl']),
+
+        # All-inhibition cycle without mutual-inhibition (repressilator-like)
+        float(cycle_info['has_all_inhib_cycle'] and not features.get('has_mutual_inhibition', False)),
+
+        # Multiple self-inhibiting genes (strong oscillator signal)
+        float(adv_topo['n_genes_with_self_inhib'] >= 2),
+
+        # Toggle switch: mutual inhibition (100% reliable)
+        float(features.get('has_mutual_inhibition', False)),
 
         # Pulse generator: IFFL
         float(features.get('has_iffl', False)),
 
         # Amplifier: activation cascade without bistability
-        float(features.get('has_activation_cascade', False) and not features.get('has_mutual_inhibition', False)),
+        float(features.get('has_activation_cascade', False) and
+              not features.get('has_mutual_inhibition', False) and
+              not features.get('has_self_inhibition', False)),
 
         # Stable: no dynamic-inducing motifs
         float(not any([
@@ -158,20 +299,23 @@ def extract_combined_features(circuit: Dict) -> np.ndarray:
             features.get('has_iffl', False),
             features.get('inhibition_cycle_odd', False),
         ])),
+
+        # Adaptation indicator: self-inhib WITH CFL or mutual-act (not oscillator)
+        float(features.get('has_self_inhibition', False) and
+              (adv_topo['has_cfl'] or adv_topo['has_mutual_act'])),
     ]
 
-    # [25-31] Derived ratios and interactions (7)
+    # [42-47] Derived ratios and interactions (6)
     derived = [
         float(n_activation) / max(n_edges, 1),  # Activation ratio
         float(n_inhibition) / max(n_edges, 1),  # Inhibition ratio
         float(n_edges) / max(n_genes * n_genes, 1),  # Density
         float(cycle_info['n_odd_inhib_cycles']) / max(cycle_info['n_cycles'], 1),  # Odd cycle ratio
-        float(n_genes >= 2 and cycle_info['n_odd_inhib_cycles'] > 0),  # Multi-gene oscillation
-        float(n_genes >= 3 and features.get('has_inhibition_cycle', False)),  # Repressilator-like
+        float(cycle_info['n_all_inhib_cycles']) / max(cycle_info['n_cycles'], 1),  # All-inhib cycle ratio
         float(features.get('has_mutual_inhibition', False) and n_genes == 2),  # Classic toggle
     ]
 
-    all_features = oracle_core + structural + cycle_feats + phenotype_indicators + derived
+    all_features = oracle_core + structural + cycle_feats + advanced_feats + phenotype_indicators + derived
     return np.array(all_features, dtype=np.float32)
 
 
@@ -180,7 +324,7 @@ class FinalClassifier(nn.Module):
     Final classifier with residual blocks and layer normalization.
     """
 
-    def __init__(self, input_dim: int = 32, hidden_dim: int = 192, n_layers: int = 4):
+    def __init__(self, input_dim: int = 48, hidden_dim: int = 192, n_layers: int = 4):
         super().__init__()
 
         # Input embedding
@@ -247,7 +391,7 @@ def create_batch(
     # Oversample oscillator since it's the hardest class
     class_counts = {p: per_class for p in phenotypes}
     if oversample_oscillator:
-        class_counts['oscillator'] = int(per_class * 1.5)
+        class_counts['oscillator'] = int(per_class * 2.0)  # Increased from 1.5x to 2x
 
     for phenotype in phenotypes:
         circuits = circuits_by_phenotype[phenotype]
