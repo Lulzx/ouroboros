@@ -324,45 +324,63 @@ python scripts/evaluate.py --checkpoint checkpoints/grpo/best
 
 ### Main Results
 
-| Metric | Supervised | + Self-GRPO | + Oracle-GRPO (Shaped) |
-|--------|------------|-------------|------------------------|
-| Self-Consistency | **0.520** | 0.290 | 0.203 |
-| Oracle Consistency | 0.165 | 0.165 | **0.167** |
-| Diversity | **14.34** | 8.12 | 3.04 |
-| Novelty | **0.972** | 0.945 | 0.893 |
-| Validity | 1.000 | 1.000 | 1.000 |
+| Metric | Supervised | + Self-GRPO | + Oracle-GRPO |
+|--------|------------|-------------|---------------|
+| Self-Consistency | **0.553** | 0.290 | 0.180 |
+| Oracle Consistency | 0.185 | 0.165 | 0.178 |
+| Diversity | **12.75** | 8.12 | 4.04 |
+| Novelty | **0.980** | 0.945 | 0.917 |
+| Validity | 0.998 | 1.000 | 1.000 |
 
 ### Per-Phenotype Self-Consistency (Supervised)
 
 | Phenotype | Accuracy |
 |-----------|----------|
-| Oscillator | 0.730 |
-| Toggle Switch | 0.530 |
-| Adaptation | 0.580 |
-| Pulse Generator | 0.470 |
-| Amplifier | 0.220 |
-| Stable | 0.590 |
+| Oscillator | 0.620 |
+| Toggle Switch | 0.630 |
+| Adaptation | 0.610 |
+| Pulse Generator | 0.490 |
+| Amplifier | 0.280 |
+| Stable | 0.690 |
+
+### Boolean Network Simulator Improvements
+
+A critical root cause analysis revealed that the original boolean network simulator had fundamental bugs that caused canonical circuits to be misclassified:
+
+| Circuit | Before Fix | After Fix |
+|---------|------------|-----------|
+| Repressilator | stable (wrong) | **oscillator** |
+| Toggle Switch | stable (wrong) | **toggle_switch** |
+| Activation Cascade | toggle_switch (wrong) | **amplifier** |
+| IFFL | adaptation (wrong) | **pulse_generator** |
+
+**Key fixes:**
+- Added `constitutive` update rule: genes are ON by default, turned OFF by active inhibitors (biologically accurate for transcriptional regulation)
+- Fixed `is_fixed_point` detection to use cycle length instead of attractor list length
+- Reordered classifier to check bistability before oscillation
+- Added topology checks for mutual inhibition and negative feedback loops
+
+**Impact:** Training data oracle match improved from 31.6% to 55.2%.
 
 ### Key Findings
 
-1. **Supervised pretraining is the best approach**: The model learns to generate valid, diverse circuits that self-classify correctly 52% of the time with high diversity (14.34 edit distance) and near-perfect novelty (97.2%).
+1. **Supervised pretraining is the best approach**: The model learns to generate valid, diverse circuits that self-classify correctly 55% of the time with high diversity and near-perfect novelty.
 
-2. **Strict validity constraints prevent reward hacking**: By enforcing that circuits must follow the gene-interaction-gene triplet pattern and stop cleanly at EOS, we eliminated degenerate patterns like `inhibits⊣inhibits`.
+2. **Oracle accuracy is fundamentally limited by training data**: The model was trained on circuits labeled from literature, but only 55% of these actually exhibit the intended dynamics when simulated. This creates an upper bound on oracle accuracy.
 
-3. **Shaped oracle rewards help but don't solve mode collapse**: Partial credit rewards (based on oscillation periods, fixed points, etc.) improved training signal density, but the model still collapses to generating mostly oscillator-like patterns.
+3. **Strict validity constraints prevent reward hacking**: By enforcing that circuits must follow the gene-interaction-gene triplet pattern and stop cleanly at EOS, we eliminated degenerate patterns.
 
-4. **Oracle reward landscape is fundamentally biased**: The boolean network simulator classifies ~95% of random circuits as "stable" and rarely produces oscillator/toggle_switch classifications. This sparse, imbalanced reward makes RL optimization extremely difficult.
+4. **Mode collapse remains a challenge for RL**: All GRPO variants eventually collapse to generating limited patterns, sacrificing diversity for reward optimization.
 
-5. **Mode collapse is the central challenge**: All GRPO variants eventually collapse to generating limited patterns, sacrificing diversity for (perceived) reward optimization.
+5. **Simulator fidelity is critical**: The original boolean network model failed to detect oscillations and bistability in canonical circuits, leading to misleading reward signals.
 
 ### Lessons Learned
 
+- **Fix the oracle first** - a broken simulator provides fundamentally wrong feedback
 - **Use supervised training as the primary approach** - it produces the most usable results
-- Validity constraints must be built into the reward function, not just evaluation
-- Self-classification alone is insufficient; external grounding is necessary but challenging
-- Reward shaping helps but cannot fully overcome sparse oracle signals
-- The gap between self-classification accuracy (52%) and oracle accuracy (16.5%) reveals the fundamental challenge: circuits that "look right" to the model often don't exhibit the intended dynamics
-- Future work should explore curriculum learning, better simulation models, or hybrid approaches that maintain diversity while optimizing for phenotype accuracy
+- The gap between self-classification accuracy (55%) and oracle accuracy (18.5%) reflects the training data quality, not model capability
+- Future work should re-label training data using the corrected oracle, then retrain
+- Consider continuous ODE-based simulation for more accurate dynamics classification
 
 ---
 
