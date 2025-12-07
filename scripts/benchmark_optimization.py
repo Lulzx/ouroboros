@@ -38,6 +38,15 @@ from src.optimization.evolutionary import (
     HillClimbingOptimizer,
 )
 
+# For topology classifier benchmark
+try:
+    import mlx.core as mx
+    import mlx.nn as nn
+    import mlx.optimizers as optim
+    HAS_MLX = True
+except ImportError:
+    HAS_MLX = False
+
 
 @dataclass
 class BenchmarkResult:
@@ -248,6 +257,218 @@ class ClassicalBenchmark:
         return circuits, elapsed, total_evaluations
 
 
+# Topology classifier components (inline to avoid import issues)
+PHENOTYPE_TO_ID = {
+    'oscillator': 0, 'toggle_switch': 1, 'adaptation': 2,
+    'pulse_generator': 3, 'amplifier': 4, 'stable': 5,
+}
+ID_TO_PHENOTYPE = {v: k for k, v in PHENOTYPE_TO_ID.items()}
+
+
+def extract_topology_features(circuit: dict) -> np.ndarray:
+    """Extract 32 topology features from circuit for neural classification."""
+    edges = circuit.get('edges', [])
+    n_genes = circuit.get('n_genes', 2)
+    features = circuit.get('features', {})
+
+    # If no edges in expected format, try to extract from interactions
+    if not edges and 'interactions' in circuit:
+        gene_map = {}
+        edges = []
+        for inter in circuit['interactions']:
+            src, tgt = inter['source'].lower(), inter['target'].lower()
+            if src not in gene_map:
+                gene_map[src] = len(gene_map)
+            if tgt not in gene_map:
+                gene_map[tgt] = len(gene_map)
+            etype = 1 if inter['type'] == 'activates' else 2
+            edges.append((gene_map[src], gene_map[tgt], etype))
+        n_genes = len(gene_map) if gene_map else 2
+
+    n_edges = len(edges)
+    n_activation = sum(1 for e in edges if e[2] == 1)
+    n_inhibition = sum(1 for e in edges if e[2] == 2)
+    n_self_loops = sum(1 for e in edges if e[0] == e[1])
+    n_self_inhib = sum(1 for e in edges if e[0] == e[1] and e[2] == 2)
+    n_self_act = sum(1 for e in edges if e[0] == e[1] and e[2] == 1)
+
+    # Mutual inhibition check
+    has_mutual_inhib = False
+    for s, t, e in edges:
+        if s != t and e == 2:
+            for s2, t2, e2 in edges:
+                if s2 == t and t2 == s and e2 == 2:
+                    has_mutual_inhib = True
+                    break
+
+    # Activation cascade check
+    has_cascade = False
+    for s, t, e in edges:
+        if s != t and e == 1:
+            for s2, t2, e2 in edges:
+                if s2 == t and t2 != s and e2 == 1:
+                    has_cascade = True
+                    break
+
+    # IFFL check
+    has_iffl = False
+    for gene_a in range(n_genes):
+        targets_act = {t for s, t, e in edges if s == gene_a and e == 1 and t != gene_a}
+        for gene_b in targets_act:
+            for gene_c in targets_act:
+                if gene_b != gene_c:
+                    if any(s == gene_b and t == gene_c and e == 2 for s, t, e in edges):
+                        has_iffl = True
+
+    # Build feature vector (32 features)
+    feat = [
+        float(n_genes), float(n_edges), float(n_activation), float(n_inhibition),
+        float(n_self_loops), float(n_self_inhib), float(n_self_act),
+        float(has_mutual_inhib), float(has_cascade), float(has_iffl),
+        float(n_self_inhib > 0), float(n_activation) / max(n_edges, 1),
+        float(n_inhibition) / max(n_edges, 1), float(n_edges) / max(n_genes * n_genes, 1),
+        float(features.get('has_self_activation', n_self_act > 0)),
+        float(features.get('has_self_inhibition', n_self_inhib > 0)),
+        float(features.get('has_mutual_inhibition', has_mutual_inhib)),
+        float(features.get('has_activation_cascade', has_cascade)),
+        float(features.get('has_inhibition_cycle', False)),
+        float(features.get('has_iffl', has_iffl)),
+        float(features.get('inhibition_cycle_odd', False)),
+        float(n_self_inhib >= 2),  # Multiple self-inhibiting genes
+        float(has_mutual_inhib and n_genes == 2),  # Classic toggle
+        float(has_cascade and not has_mutual_inhib and n_self_inhib == 0),  # Amplifier pattern
+        float(not any([n_self_inhib > 0, has_mutual_inhib, has_iffl])),  # Stable pattern
+        float(n_self_inhib > 0 and not has_mutual_inhib and not has_iffl),  # Oscillator pattern
+        float(n_activation == 0),  # No activation
+        float(n_inhibition == 0),  # No inhibition
+        float(n_self_loops == n_edges),  # All self-loops
+        float(n_self_loops == 0),  # No self-loops
+        float(n_genes == 2), float(n_genes == 3),
+    ]
+    return np.array(feat, dtype=np.float32)
+
+
+class TopologyClassifier(nn.Module):
+    """Simple MLP classifier for topology features."""
+
+    def __init__(self, input_dim: int = 32, hidden_dim: int = 128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, 6),  # 6 phenotypes
+        )
+
+    def __call__(self, x):
+        return self.net(x)
+
+
+class TopologyBenchmark:
+    """Benchmark for topology-based generation with neural classifier."""
+
+    def __init__(self, verified_db: dict, gene_pool: list[str], seed: int = 42):
+        self.db = verified_db
+        self.gene_pool = gene_pool
+        self.rng = random.Random(seed)
+        self.circuits_by_phenotype = verified_db.get("verified_circuits", {})
+
+        # Train a quick classifier on the verified circuits
+        if HAS_MLX:
+            self.model = self._train_classifier()
+        else:
+            self.model = None
+
+    def _train_classifier(self) -> TopologyClassifier:
+        """Train classifier on verified circuits."""
+        features_list = []
+        labels = []
+
+        for phenotype, circuits in self.circuits_by_phenotype.items():
+            if phenotype not in PHENOTYPE_TO_ID:
+                continue
+            for circuit in circuits[:500]:  # Sample for speed
+                feat = extract_topology_features(circuit)
+                features_list.append(feat)
+                labels.append(PHENOTYPE_TO_ID[phenotype])
+
+        X = mx.array(np.stack(features_list))
+        y = mx.array(labels)
+
+        model = TopologyClassifier(input_dim=32, hidden_dim=128)
+        optimizer = optim.Adam(learning_rate=1e-3)
+
+        def loss_fn(model, x, y):
+            logits = model(x)
+            return mx.mean(nn.losses.cross_entropy(logits, y))
+
+        loss_and_grad = nn.value_and_grad(model, loss_fn)
+
+        # Training (200 steps for better accuracy)
+        batch_size = 128
+        for _ in range(200):
+            idx = np.random.choice(len(features_list), batch_size)
+            batch_x = mx.array(np.stack([features_list[i] for i in idx]))
+            batch_y = mx.array([labels[i] for i in idx])
+            loss, grads = loss_and_grad(model, batch_x, batch_y)
+            optimizer.update(model, grads)
+            mx.eval(model.parameters())
+
+        return model
+
+    def generate(self, phenotype: str, num_circuits: int) -> tuple[list[dict], float, int]:
+        """Generate circuits using neural classifier for verification."""
+        if not HAS_MLX or self.model is None:
+            return [], 0.0, 0
+
+        start = time.time()
+        circuits = []
+        evaluations = 0
+
+        templates = self.circuits_by_phenotype.get(phenotype, [])
+        if not templates:
+            return [], time.time() - start, 0
+
+        target_id = PHENOTYPE_TO_ID.get(phenotype, 0)
+
+        for _ in range(num_circuits):
+            template = self.rng.choice(templates)
+            edges = template["edges"]
+            n_genes = template["n_genes"]
+
+            gene_names = self.rng.sample(self.gene_pool, min(n_genes, len(self.gene_pool)))
+
+            interactions = []
+            for src, tgt, etype in edges:
+                if src < len(gene_names) and tgt < len(gene_names):
+                    interactions.append({
+                        "source": gene_names[src],
+                        "target": gene_names[tgt],
+                        "type": "activates" if etype == 1 else "inhibits"
+                    })
+
+            circuit = {
+                "interactions": interactions,
+                "phenotype": phenotype,
+                "edges": edges,
+                "n_genes": n_genes,
+                "features": template.get("features", {}),
+            }
+
+            # Verify with neural classifier
+            feat = extract_topology_features(circuit)
+            logits = self.model(mx.array(feat[None]))
+            pred_id = int(mx.argmax(logits[0]))
+            evaluations += 1
+
+            if pred_id == target_id:
+                circuits.append(circuit)
+
+        elapsed = time.time() - start
+        return circuits, elapsed, evaluations
+
+
 def run_benchmark(
     phenotypes: list[str],
     num_circuits: int,
@@ -263,10 +484,13 @@ def run_benchmark(
     # Methods to benchmark
     methods = {
         "template": TemplateBenchmark(verified_db, gene_pool, seed),
+        "topology_nn": TopologyBenchmark(verified_db, gene_pool, seed) if HAS_MLX else None,
         "evolutionary": ClassicalBenchmark(gene_pool, "evolutionary", seed),
         "hill_climbing": ClassicalBenchmark(gene_pool, "hill_climbing", seed),
         "random_search": ClassicalBenchmark(gene_pool, "random", seed),
     }
+    # Filter out None methods
+    methods = {k: v for k, v in methods.items() if v is not None}
 
     for phenotype in phenotypes:
         print(f"\n{'='*60}")
@@ -276,7 +500,7 @@ def run_benchmark(
         for method_name, benchmark in methods.items():
             print(f"\n  {method_name}...")
 
-            if method_name == "template":
+            if method_name in ("template", "topology_nn"):
                 circuits, elapsed, evals = benchmark.generate(phenotype, num_circuits)
             else:
                 circuits, elapsed, evals = benchmark.generate(
