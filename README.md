@@ -341,9 +341,11 @@ python scripts/evaluate.py --checkpoint checkpoints/grpo/best
 
 ## Results
 
-### Breakthrough: 99.8% Oracle Accuracy
+### Practical Solution: 99.8% Oracle Accuracy
 
-Through a first-principles approach combining exhaustive enumeration and constrained generation, we achieved **99.8% oracle accuracy** - a dramatic improvement from the original ~20%.
+Through exhaustive enumeration and template-based generation, we achieved **99.8% oracle accuracy** for small circuits (2-3 genes).
+
+**Important caveat**: This is a practical engineering solution, not a learned generalization. Template-based generation samples from pre-verified topologies - accuracy is guaranteed by construction, not learned. The neural models plateau at ~50% accuracy, which represents the actual learning challenge.
 
 | Method | Oracle Accuracy | Diversity | Notes |
 |--------|----------------|-----------|-------|
@@ -351,15 +353,22 @@ Through a first-principles approach combining exhaustive enumeration and constra
 | Self-Classification GRPO | Mode collapse | - | Collapses to single phenotype |
 | Oracle GRPO | 43.3% | Medium | Uses simulator as reward |
 | Expert Iteration (10 rounds) | 50.8% | Medium | Best neural approach |
-| **Template-Based (Verified)** | **99.8%** | **High** | Uses verified topologies |
+| **Template-Based (Verified)** | **99.8%** | **High** | Lookup from verified database |
 
-### The Key Insight: Topology ≠ Dynamics
+### The Core Challenge: Learning Structure
 
-The fundamental problem was that neural models learn *correlations* (e.g., "oscillator" → inhibition cycles) but not *causation* (specific cycle structures that actually oscillate). We solved this by:
+Neural models learn *correlations* (e.g., "oscillator" → inhibition cycles) but not *causation* (specific structures that actually oscillate). This is why:
 
-1. **Exhaustive Enumeration**: Testing all 19,762 possible 2-3 gene circuit topologies
-2. **Discovering Necessary Conditions**: Finding what patterns GUARANTEE each phenotype
-3. **Constrained Generation**: Only generating from verified working topologies
+- Supervised learning plateaus at ~20%
+- GRPO improves to ~43% but can't discover new structures
+- Expert iteration reaches ~50% with verified data augmentation
+
+For **practical applications** (small circuits), we use template-based generation:
+1. Exhaustively enumerate all 19,762 possible 2-3 gene topologies
+2. Pre-verify each with the oracle simulator
+3. Sample from verified topologies at generation time
+
+**Limitation**: This doesn't scale to larger circuits without re-enumeration.
 
 ### Discovered Necessary Conditions
 
@@ -471,7 +480,7 @@ We explored multiple GRPO variants for reinforcement learning:
 
 1. **Exhaustive enumeration reveals ground truth**: By testing all small circuits, we discovered exactly what patterns work for each phenotype.
 
-2. **Template-based generation achieves near-perfect accuracy**: Using only verified topologies guarantees correctness while maintaining diversity through gene assignment.
+2. **Template-based generation is a practical workaround**: Sampling from pre-verified topologies guarantees correctness but is not learned generalization - it's database lookup with combinatorial gene assignment.
 
 3. **Neural models plateau at ~50% accuracy**: Even with expert iteration and GRPO, neural models struggle with phenotypes requiring specific topological structures. This is a fundamental limitation: neural models learn smooth distributions that assign probability mass to invalid structures.
 
