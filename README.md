@@ -135,42 +135,77 @@ pip install -r requirements.txt
 The framework is built on MLX for Apple Silicon optimization:
 
 ```
-mlx>=0.4.0
-mlx-lm>=0.2.0
+mlx>=0.20.0
+mlx-lm>=0.20.0
 numpy>=1.24.0
 pyyaml>=6.0
 tqdm>=4.65.0
 pandas>=2.0.0
 matplotlib>=3.7.0
-networkx>=3.1
 ```
 
 ---
 
 ## Quick Start
 
-### Generate Circuits
+### Run the Full Pipeline
 
-```python
-from ouroboros import Ouroboros
-
-model = Ouroboros.from_pretrained("checkpoints/grpo/best")
-
-circuit = model.generate("<oscillator>", temperature=0.8)
-
-circuits = model.generate_batch("<toggle_switch>", n=10)
-
-label, confidence = model.classify("geneA activates geneB inhibits geneA")
+```bash
+./scripts/run_pipeline.sh
 ```
 
-### Validate with Simulation
+This runs preprocessing, supervised training, GRPO training, and evaluation.
+
+### Individual Steps
+
+```bash
+# 1. Preprocess data
+python scripts/preprocess.py --expand 10
+
+# 2. Supervised pretraining
+python scripts/train_supervised.py --epochs 20 --augment
+
+# 3. GRPO training
+python scripts/train_grpo.py --steps 2000
+
+# 4. Oracle GRPO (optional)
+python scripts/train_oracle_grpo.py --steps 1000
+
+# 5. Evaluate
+python scripts/evaluate.py --checkpoint checkpoints/grpo/checkpoint_step2000.safetensors
+
+# 6. Generate circuits
+python scripts/generate.py --checkpoint checkpoints/grpo/checkpoint_step2000.safetensors --phenotype oscillator --simulate
+```
+
+### Using the Python API
 
 ```python
-from ouroboros.simulator import BooleanNetwork
+from src.data.tokenizer import GRNTokenizer
+from src.model.transformer import GRNTransformer, ModelArgs
+from src.model.generation import generate
+from src.simulator.boolean_network import BooleanNetwork
+from src.simulator.classify_behavior import BehaviorClassifier
+import mlx.core as mx
 
+# Load tokenizer and model
+tokenizer = GRNTokenizer.load("data/processed/tokenizer.json")
+model = GRNTransformer(ModelArgs(vocab_size=tokenizer.vocab_size))
+weights = mx.load("checkpoints/grpo/checkpoint_step2000.safetensors")
+model.load_weights(list(weights.items()))
+
+# Generate an oscillator circuit
+phenotype_id = tokenizer.token_to_id["<oscillator>"]
+prompt = mx.array([[tokenizer.bos_token_id, phenotype_id]])
+generated = generate(model, prompt, max_length=64, temperature=1.0)
+circuit = tokenizer.decode(generated[0].tolist())
+print(circuit)
+
+# Validate with simulation
 network = BooleanNetwork.from_circuit(circuit)
-trajectory = network.simulate(steps=100, num_initial_conditions=10)
-behavior = network.classify_dynamics()
+classifier = BehaviorClassifier()
+predicted_behavior, details = classifier.classify(network)
+print(f"Simulated behavior: {predicted_behavior}")
 ```
 
 ---
