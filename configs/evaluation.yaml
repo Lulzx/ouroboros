@@ -1,0 +1,14 @@
+# Evaluation configuration
+evaluation:
+  num_samples_per_class: 100
+  diversity_samples: 100
+  novelty_edit_threshold: 3
+
+# Phenotype classes
+phenotypes:
+  - oscillator
+  - toggle_switch
+  - adaptation
+  - pulse_generator
+  - amplifier
+  - stable

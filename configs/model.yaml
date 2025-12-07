@@ -1,0 +1,16 @@
+# Model configuration
+model:
+  vocab_size: 150
+  embed_dim: 256
+  num_layers: 6
+  num_heads: 8
+  mlp_dim: 1024
+  max_seq_len: 128
+  dropout: 0.1
+
+# Generation settings
+generation:
+  temperature: 1.0
+  top_k: 50
+  top_p: 0.95
+  max_length: 64
