@@ -234,6 +234,184 @@ class BehaviorClassifier:
         """Classify multiple networks."""
         return [self.classify(net, seed=seed + i) for i, net in enumerate(networks)]
 
+    def compute_shaped_reward(
+        self,
+        network: BooleanNetwork,
+        intended_phenotype: str,
+        seed: int = 42,
+    ) -> tuple[float, dict]:
+        """
+        Compute shaped reward with partial credit for behaviors.
+
+        Instead of binary 0/1, gives partial credit based on how close
+        the dynamics are to the intended phenotype.
+
+        Args:
+            network: BooleanNetwork to evaluate
+            intended_phenotype: Target phenotype name
+            seed: Random seed
+
+        Returns:
+            Tuple of (reward, details_dict)
+            Reward is in range [0, 1]
+        """
+        if network.num_genes == 0:
+            return 0.0, {"reason": "empty_network"}
+
+        # Get dynamics info
+        dynamics = detect_dynamics(
+            network,
+            num_initial_conditions=self.num_initial_conditions,
+            max_steps=self.max_steps,
+            rule=self.rule,
+            seed=seed,
+        )
+
+        # Get actual classification
+        predicted, details = self.classify(network, seed=seed)
+
+        # Perfect match gets full reward
+        if predicted == intended_phenotype:
+            return 1.0, {"match": True, "predicted": predicted}
+
+        # Compute partial reward based on intended phenotype
+        reward = 0.0
+        reason = "no_match"
+
+        if intended_phenotype == "oscillator":
+            # Partial credit for:
+            # - Having any oscillations (even if not dominant)
+            # - Having multiple attractors (complexity)
+            # - Having cycles with period > 1
+            if dynamics["num_oscillations"] > 0:
+                periods = dynamics["oscillation_periods"]
+                avg_period = np.mean(periods) if periods else 0
+                # More credit for longer periods (up to period 10)
+                period_score = min(avg_period / 10.0, 1.0) * 0.5
+                # Credit for having oscillations at all
+                osc_ratio = dynamics["num_oscillations"] / max(self.num_initial_conditions, 1)
+                osc_score = osc_ratio * 0.3
+                reward = period_score + osc_score
+                reason = "partial_oscillation"
+            elif dynamics["num_attractors"] > 1:
+                # Multiple attractors is somewhat oscillator-like (complex)
+                reward = 0.1
+                reason = "multiple_attractors"
+
+        elif intended_phenotype == "toggle_switch":
+            # Partial credit for:
+            # - Having any fixed points
+            # - Having multiple attractors
+            num_fp = dynamics["num_fixed_points"]
+            if num_fp >= 2:
+                reward = 1.0  # This should match, but just in case
+                reason = "bistable"
+            elif num_fp == 1:
+                # Has stability, just not bistable
+                reward = 0.3
+                reason = "monostable"
+            elif dynamics["num_attractors"] > 1:
+                reward = 0.2
+                reason = "multiple_attractors"
+
+        elif intended_phenotype == "adaptation":
+            # Partial credit for returning to baseline-ish
+            rng = np.random.default_rng(seed)
+            adaptation_scores = []
+            for gene in network.genes[:3]:
+                result = test_adaptation(
+                    network,
+                    perturbation_gene=gene,
+                    rule=self.rule,
+                    rng=rng,
+                )
+                if result["is_adaptive"]:
+                    adaptation_scores.append(1.0)
+                elif result.get("baseline") and result.get("recovered"):
+                    # Partial credit if it went somewhere stable
+                    adaptation_scores.append(0.2)
+                else:
+                    adaptation_scores.append(0.0)
+            if adaptation_scores:
+                reward = np.mean(adaptation_scores) * 0.8
+                reason = "partial_adaptation"
+
+        elif intended_phenotype == "pulse_generator":
+            # Partial credit for IFFL-like topology
+            if self._is_pulse_generator_topology(network):
+                reward = 0.8  # Has topology but dynamics didn't match
+                reason = "iffl_topology_present"
+            elif self._has_feedforward_motif(network):
+                reward = 0.3
+                reason = "has_feedforward"
+
+        elif intended_phenotype == "amplifier":
+            # Partial credit for cascade topology
+            if self._is_amplifier_topology(network):
+                reward = 0.8
+                reason = "cascade_topology_present"
+            elif self._has_activation_chain(network):
+                reward = 0.3
+                reason = "has_activation_chain"
+
+        elif intended_phenotype == "stable":
+            # Partial credit for having fixed points
+            if dynamics["num_fixed_points"] >= 1:
+                reward = 0.5  # Has stability
+                reason = "has_fixed_point"
+
+        return reward, {
+            "match": False,
+            "predicted": predicted,
+            "intended": intended_phenotype,
+            "partial_reason": reason,
+        }
+
+    def _has_feedforward_motif(self, network: BooleanNetwork) -> bool:
+        """Check if network has any feedforward motif (A->B, A->C, B->C)."""
+        for gene_a in network.genes:
+            targets = set()
+            for target, activators in network.activators.items():
+                if gene_a in activators:
+                    targets.add(target)
+            for target, inhibitors in network.inhibitors.items():
+                if gene_a in inhibitors:
+                    targets.add(target)
+
+            # Check if any two targets are connected
+            for gene_b in targets:
+                for gene_c in targets:
+                    if gene_b != gene_c:
+                        # B -> C or B -| C
+                        if gene_b in network.activators.get(gene_c, []):
+                            return True
+                        if gene_b in network.inhibitors.get(gene_c, []):
+                            return True
+        return False
+
+    def _has_activation_chain(self, network: BooleanNetwork) -> bool:
+        """Check if network has an activation chain of length >= 2."""
+        for start_gene in network.genes:
+            visited = {start_gene}
+            current = start_gene
+            chain_length = 0
+
+            while chain_length < 5:  # Limit search depth
+                next_gene = None
+                for target, activators in network.activators.items():
+                    if current in activators and target not in visited:
+                        next_gene = target
+                        break
+                if next_gene is None:
+                    break
+                visited.add(next_gene)
+                current = next_gene
+                chain_length += 1
+
+            if chain_length >= 2:
+                return True
+        return False
+
 
 def classify_phenotype(
     circuit: dict,

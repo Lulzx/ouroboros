@@ -108,6 +108,7 @@ class OracleGRPOTrainer:
         self,
         sequences: mx.array,
         intended_phenotypes: mx.array,
+        use_shaped_rewards: bool = True,
     ) -> mx.array:
         """
         Compute rewards based on oracle (simulator) classification.
@@ -115,9 +116,10 @@ class OracleGRPOTrainer:
         Args:
             sequences: Generated sequences
             intended_phenotypes: Intended phenotype token IDs
+            use_shaped_rewards: If True, use partial credit rewards
 
         Returns:
-            Rewards array (1.0 if valid AND oracle matches, 0.0 otherwise)
+            Rewards array (shaped or binary based on use_shaped_rewards)
         """
         circuits = self.decode_sequences(sequences)
         rewards = []
@@ -139,12 +141,20 @@ class OracleGRPOTrainer:
                     continue
 
                 network = BooleanNetwork.from_circuit(circuit)
-                predicted, _ = self.behavior_classifier.classify(network, seed=i)
 
-                if predicted == intended_name:
-                    rewards.append(1.0)
+                if use_shaped_rewards:
+                    # Use shaped rewards with partial credit
+                    reward, _ = self.behavior_classifier.compute_shaped_reward(
+                        network, intended_name, seed=i
+                    )
+                    rewards.append(reward)
                 else:
-                    rewards.append(0.0)
+                    # Binary reward
+                    predicted, _ = self.behavior_classifier.classify(network, seed=i)
+                    if predicted == intended_name:
+                        rewards.append(1.0)
+                    else:
+                        rewards.append(0.0)
             except Exception:
                 rewards.append(0.0)
 
