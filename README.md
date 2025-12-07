@@ -31,6 +31,20 @@ Ouroboros generates gene regulatory network (GRN) circuits conditioned on desire
 
 ---
 
+## Generation Benchmarks
+
+| Method | Time/Circuit | Success | Evals/Circuit | Speedup |
+|--------|--------------|---------|---------------|---------|
+| **Template** | **0.16ms** | **100%** | **1.0** | **68x** |
+| Topology NN | 0.23ms | 81% | 1.0 | 47x |
+| Random Search | 2.57ms | 100% | 17.1 | 4x |
+| Hill Climbing | 5.00ms | 100% | 18.2 | 2x |
+| Evolutionary | 10.86ms | 100% | 37.5 | 1x (baseline) |
+
+Template-based generation uses pre-verified topologies for guaranteed correctness. Topology NN uses neural classification (faster inference, ~81% accuracy).
+
+---
+
 ## Supported Phenotypes
 
 | Phenotype | Description | Key Structure |
