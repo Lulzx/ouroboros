@@ -1,0 +1,797 @@
+{
+  "circuits": [
+    {
+      "id": "repressilator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "lacI", "target": "tetR", "type": "inhibits"},
+        {"source": "tetR", "target": "cI", "type": "inhibits"},
+        {"source": "cI", "target": "lacI", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Elowitz & Leibler 2000"
+    },
+    {
+      "id": "5_gene_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"},
+        {"source": "geneC", "target": "geneD", "type": "inhibits"},
+        {"source": "geneD", "target": "geneE", "type": "inhibits"},
+        {"source": "geneE", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "5-node negative feedback ring"
+    },
+    {
+      "id": "activator_inhibitor_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "actA", "target": "repA", "type": "activates"},
+        {"source": "repA", "target": "actA", "type": "inhibits"},
+        {"source": "actA", "target": "actA", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Activator-inhibitor with positive autoregulation"
+    },
+    {
+      "id": "dual_feedback_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneA", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Delayed negative feedback oscillator"
+    },
+    {
+      "id": "p53_mdm2_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "p53", "target": "mdm2", "type": "activates"},
+        {"source": "mdm2", "target": "p53", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "p53-Mdm2 oscillations"
+    },
+    {
+      "id": "nfkb_ikb_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "nfkb", "target": "geneA", "type": "activates"},
+        {"source": "geneA", "target": "nfkb", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "NF-kB IkB negative feedback"
+    },
+    {
+      "id": "cell_cycle_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "cyclinB", "target": "cdk1", "type": "activates"},
+        {"source": "cdk1", "target": "cyclinB", "type": "inhibits"},
+        {"source": "cdk1", "target": "cdc25", "type": "activates"},
+        {"source": "cdc25", "target": "cdk1", "type": "activates"},
+        {"source": "cdk1", "target": "wee1", "type": "inhibits"},
+        {"source": "wee1", "target": "cdk1", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Cell cycle Cdk1 oscillator"
+    },
+    {
+      "id": "gardner_toggle_switch",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "lacI", "target": "tetR", "type": "inhibits"},
+        {"source": "tetR", "target": "lacI", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Gardner et al. 2000"
+    },
+    {
+      "id": "mutual_inhibition_1",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Generic mutual inhibition"
+    },
+    {
+      "id": "toggle_with_autoactivation",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneA", "type": "activates"},
+        {"source": "geneB", "target": "geneB", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Bistable switch with positive autoregulation"
+    },
+    {
+      "id": "myc_rb_toggle",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "myc", "target": "rb", "type": "inhibits"},
+        {"source": "rb", "target": "myc", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Cell fate decision Myc-Rb"
+    },
+    {
+      "id": "apoptosis_toggle",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "bcl2", "target": "bax", "type": "inhibits"},
+        {"source": "bax", "target": "bcl2", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Apoptosis decision switch"
+    },
+    {
+      "id": "triple_mutual_inhibition",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneC", "type": "inhibits"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneC", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Three-way mutual inhibition (tristable)"
+    },
+    {
+      "id": "incoherent_ffl_type1",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "I1-FFL pulse generator"
+    },
+    {
+      "id": "incoherent_ffl_type2",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "I2-FFL variant"
+    },
+    {
+      "id": "delayed_pulse",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Incoherent FFL with delay"
+    },
+    {
+      "id": "araC_pulse",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "araC", "target": "geneB", "type": "activates"},
+        {"source": "araC", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Arabinose IFFL pulse"
+    },
+    {
+      "id": "bacterial_chemotaxis",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "E. coli chemotaxis adaptation"
+    },
+    {
+      "id": "integral_feedback",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Integral feedback controller"
+    },
+    {
+      "id": "negative_autoregulation_adaptation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "NAR for fast response and adaptation"
+    },
+    {
+      "id": "perfect_adaptation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Four-node adaptation circuit"
+    },
+    {
+      "id": "kinase_cascade_2",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Two-stage kinase cascade"
+    },
+    {
+      "id": "mapk_cascade",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "ras", "target": "raf", "type": "activates"},
+        {"source": "raf", "target": "mek", "type": "activates"},
+        {"source": "mek", "target": "erk", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "MAPK signaling cascade"
+    },
+    {
+      "id": "positive_feedback_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneB", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Amplifier with positive autoregulation"
+    },
+    {
+      "id": "dual_activation_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Convergent activation amplifier"
+    },
+    {
+      "id": "pi3k_akt_cascade",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "egfr", "target": "pi3k", "type": "activates"},
+        {"source": "pi3k", "target": "akt", "type": "activates"},
+        {"source": "akt", "target": "mtor", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "PI3K-Akt-mTOR pathway"
+    },
+    {
+      "id": "simple_activation",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Simple activation"
+    },
+    {
+      "id": "simple_inhibition",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Simple repression"
+    },
+    {
+      "id": "negative_autoregulation",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "NAR for stable expression"
+    },
+    {
+      "id": "coherent_ffl_type1",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "C1-FFL sign-sensitive delay"
+    },
+    {
+      "id": "coherent_ffl_type4",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneA", "target": "geneC", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "C4-FFL all repression"
+    },
+    {
+      "id": "cascade_3",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Three-stage activation cascade"
+    },
+    {
+      "id": "multi_input",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "OR-gate multi-input"
+    },
+    {
+      "id": "diamond_motif",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Diamond motif"
+    },
+    {
+      "id": "repressilator_variant_4",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "repA", "target": "repB", "type": "inhibits"},
+        {"source": "repB", "target": "repC", "type": "inhibits"},
+        {"source": "repC", "target": "repD", "type": "inhibits"},
+        {"source": "repD", "target": "repA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "4-node repressilator (unstable oscillation)"
+    },
+    {
+      "id": "goodwin_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Goodwin negative feedback oscillator"
+    },
+    {
+      "id": "relaxation_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneB", "target": "geneB", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Relaxation oscillator motif"
+    },
+    {
+      "id": "mutual_inhibition_positive_auto",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneA", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Asymmetric toggle switch"
+    },
+    {
+      "id": "erk_toggle",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "erk", "target": "geneA", "type": "activates"},
+        {"source": "geneA", "target": "erk", "type": "activates"},
+        {"source": "geneB", "target": "erk", "type": "inhibits"},
+        {"source": "erk", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "ERK bistability circuit"
+    },
+    {
+      "id": "double_negative_toggle",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Complex bistable motif"
+    },
+    {
+      "id": "iffl_pulse_with_delay",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneA", "target": "geneD", "type": "activates"},
+        {"source": "geneD", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "IFFL with delay element"
+    },
+    {
+      "id": "double_iffl_pulse",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Two-branch IFFL"
+    },
+    {
+      "id": "adaptation_sensor",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Sensory adaptation circuit"
+    },
+    {
+      "id": "robust_adaptation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Robust perfect adaptation"
+    },
+    {
+      "id": "triple_cascade_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"},
+        {"source": "geneD", "target": "geneE", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Four-stage amplifier cascade"
+    },
+    {
+      "id": "jak_stat_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "il6", "target": "jak", "type": "activates"},
+        {"source": "jak", "target": "stat3", "type": "activates"},
+        {"source": "stat3", "target": "geneA", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "JAK-STAT signaling amplification"
+    },
+    {
+      "id": "wnt_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "wnt", "target": "geneA", "type": "activates"},
+        {"source": "geneA", "target": "gsk3", "type": "inhibits"},
+        {"source": "gsk3", "target": "beta_catenin", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Wnt pathway double-negative amplifier"
+    },
+    {
+      "id": "linear_chain",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Simple linear cascade"
+    },
+    {
+      "id": "fan_out",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneA", "target": "geneD", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Fan-out regulatory hub"
+    },
+    {
+      "id": "fan_in",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneD", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Fan-in integration"
+    },
+    {
+      "id": "mixed_ffl",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Mixed feed-forward loop"
+    },
+    {
+      "id": "repressilator_positive",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneA", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Repressilator with positive autoregulation"
+    },
+    {
+      "id": "metabolic_oscillator",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "ampk", "target": "mtor", "type": "inhibits"},
+        {"source": "mtor", "target": "ampk", "type": "inhibits"},
+        {"source": "ampk", "target": "sirt1", "type": "activates"},
+        {"source": "sirt1", "target": "ampk", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "AMPK-mTOR metabolic oscillator"
+    },
+    {
+      "id": "yeast_cell_cycle",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "cln1", "target": "sic1", "type": "inhibits"},
+        {"source": "sic1", "target": "clb1", "type": "inhibits"},
+        {"source": "clb1", "target": "cln1", "type": "inhibits"},
+        {"source": "clb1", "target": "cdh1", "type": "inhibits"},
+        {"source": "cdh1", "target": "clb1", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Budding yeast cell cycle"
+    },
+    {
+      "id": "positive_feedback_bistable",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "geneA", "target": "geneA", "type": "activates"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Positive feedback bistability"
+    },
+    {
+      "id": "stem_cell_toggle",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "oct4", "target": "sox2", "type": "activates"},
+        {"source": "sox2", "target": "oct4", "type": "activates"},
+        {"source": "geneA", "target": "oct4", "type": "inhibits"},
+        {"source": "oct4", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Stem cell pluripotency toggle"
+    },
+    {
+      "id": "notch_delta_bistable",
+      "phenotype": "toggle_switch",
+      "interactions": [
+        {"source": "notch", "target": "geneA", "type": "activates"},
+        {"source": "geneA", "target": "notch", "type": "activates"},
+        {"source": "geneB", "target": "notch", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Notch lateral inhibition bistability"
+    },
+    {
+      "id": "sharp_pulse",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"},
+        {"source": "geneC", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Sharp pulse with NAR"
+    },
+    {
+      "id": "dna_damage_pulse",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "atm", "target": "p53", "type": "activates"},
+        {"source": "atm", "target": "mdm2", "type": "activates"},
+        {"source": "mdm2", "target": "p53", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "DNA damage p53 pulse"
+    },
+    {
+      "id": "biphasic_adaptation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "inhibits"},
+        {"source": "geneD", "target": "geneD", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Biphasic adaptation response"
+    },
+    {
+      "id": "homeostatic_adaptation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Homeostatic controller"
+    },
+    {
+      "id": "ultrasensitive_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Ultrasensitive cascade"
+    },
+    {
+      "id": "tgfb_smad_amplifier",
+      "phenotype": "amplifier",
+      "interactions": [
+        {"source": "tgfb", "target": "smad", "type": "activates"},
+        {"source": "smad", "target": "geneA", "type": "activates"},
+        {"source": "geneA", "target": "geneB", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "TGF-beta SMAD cascade"
+    },
+    {
+      "id": "single_node",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneA", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Positive autoregulation"
+    },
+    {
+      "id": "repression_cascade",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Double repression (activation)"
+    },
+    {
+      "id": "complex_stable",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "inhibits"},
+        {"source": "geneD", "target": "geneE", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Mixed regulation cascade"
+    },
+    {
+      "id": "regulatory_hub",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "p53", "target": "p21", "type": "activates"},
+        {"source": "p53", "target": "mdm2", "type": "activates"},
+        {"source": "p53", "target": "bax", "type": "activates"}
+      ],
+      "source": "literature",
+      "reference": "p53 regulatory hub"
+    },
+    {
+      "id": "circadian_core",
+      "phenotype": "oscillator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneA", "type": "inhibits"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneA", "type": "inhibits"}
+      ],
+      "source": "literature",
+      "reference": "Circadian rhythm core"
+    },
+    {
+      "id": "synthetic_timer",
+      "phenotype": "pulse_generator",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneA", "type": "activates"},
+        {"source": "geneB", "target": "geneC", "type": "activates"},
+        {"source": "geneC", "target": "geneB", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Synthetic genetic timer"
+    },
+    {
+      "id": "dosage_compensation",
+      "phenotype": "adaptation",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneB", "target": "geneB", "type": "inhibits"},
+        {"source": "geneB", "target": "geneC", "type": "activates"}
+      ],
+      "source": "synthetic",
+      "reference": "Dosage compensation circuit"
+    },
+    {
+      "id": "noise_filter",
+      "phenotype": "stable",
+      "interactions": [
+        {"source": "geneA", "target": "geneB", "type": "activates"},
+        {"source": "geneA", "target": "geneC", "type": "activates"},
+        {"source": "geneB", "target": "geneD", "type": "activates"},
+        {"source": "geneC", "target": "geneD", "type": "activates"},
+        {"source": "geneD", "target": "geneD", "type": "inhibits"}
+      ],
+      "source": "synthetic",
+      "reference": "Noise-filtering circuit"
+    }
+  ]
+}
