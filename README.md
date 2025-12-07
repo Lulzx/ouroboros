@@ -324,43 +324,45 @@ python scripts/evaluate.py --checkpoint checkpoints/grpo/best
 
 ### Main Results
 
-| Metric | Supervised | + Self-GRPO | + Oracle-GRPO |
-|--------|------------|-------------|---------------|
-| Self-Consistency | 0.537 | 0.780* | 0.337 |
-| Oracle Consistency | 0.165 | 0.168 | 0.202 |
-| Diversity | 13.06 | 27.62* | 6.22 |
-| Novelty | 0.978 | 1.000 | 0.988 |
-| Validity | 1.000 | 0.985* | 1.000 |
-
-*Self-GRPO achieved high self-consistency through degenerate token patterns (interaction tokens used as genes), not valid circuits.
+| Metric | Supervised | + Self-GRPO | + Oracle-GRPO (Shaped) |
+|--------|------------|-------------|------------------------|
+| Self-Consistency | **0.520** | 0.290 | 0.203 |
+| Oracle Consistency | 0.165 | 0.165 | **0.167** |
+| Diversity | **14.34** | 8.12 | 3.04 |
+| Novelty | **0.972** | 0.945 | 0.893 |
+| Validity | 1.000 | 1.000 | 1.000 |
 
 ### Per-Phenotype Self-Consistency (Supervised)
 
 | Phenotype | Accuracy |
 |-----------|----------|
-| Oscillator | 0.710 |
-| Toggle Switch | 0.630 |
-| Adaptation | 0.590 |
-| Pulse Generator | 0.440 |
-| Amplifier | 0.260 |
+| Oscillator | 0.730 |
+| Toggle Switch | 0.530 |
+| Adaptation | 0.580 |
+| Pulse Generator | 0.470 |
+| Amplifier | 0.220 |
 | Stable | 0.590 |
 
 ### Key Findings
 
-1. **Supervised pretraining works well**: The model learns to generate valid, diverse circuits that self-classify correctly 54% of the time.
+1. **Supervised pretraining is the best approach**: The model learns to generate valid, diverse circuits that self-classify correctly 52% of the time with high diversity (14.34 edit distance) and near-perfect novelty (97.2%).
 
-2. **Self-classification GRPO is vulnerable to reward hacking**: Without validity constraints, the model discovers degenerate patterns (`inhibits⊣inhibits`) that achieve high self-consistency but are semantically meaningless.
+2. **Strict validity constraints prevent reward hacking**: By enforcing that circuits must follow the gene-interaction-gene triplet pattern and stop cleanly at EOS, we eliminated degenerate patterns like `inhibits⊣inhibits`.
 
-3. **Oracle reward is sparse**: The boolean network simulator classifies most circuits as "stable" unless they contain specific feedback structures. This makes RL optimization difficult for non-stable phenotypes.
+3. **Shaped oracle rewards help but don't solve mode collapse**: Partial credit rewards (based on oscillation periods, fixed points, etc.) improved training signal density, but the model still collapses to generating mostly oscillator-like patterns.
 
-4. **Mode collapse under RL**: Both GRPO variants eventually collapse to generating limited patterns (primarily oscillator-like or stable-like circuits regardless of the intended phenotype).
+4. **Oracle reward landscape is fundamentally biased**: The boolean network simulator classifies ~95% of random circuits as "stable" and rarely produces oscillator/toggle_switch classifications. This sparse, imbalanced reward makes RL optimization extremely difficult.
+
+5. **Mode collapse is the central challenge**: All GRPO variants eventually collapse to generating limited patterns, sacrificing diversity for (perceived) reward optimization.
 
 ### Lessons Learned
 
-- Validity constraints must be part of the reward function, not just evaluation
-- Self-classification alone is insufficient; external grounding (oracle) is necessary but challenging
-- The simulator's harsh classification creates sparse rewards that impede learning
-- Curriculum learning or reward shaping may be needed for complex phenotypes
+- **Use supervised training as the primary approach** - it produces the most usable results
+- Validity constraints must be built into the reward function, not just evaluation
+- Self-classification alone is insufficient; external grounding is necessary but challenging
+- Reward shaping helps but cannot fully overcome sparse oracle signals
+- The gap between self-classification accuracy (52%) and oracle accuracy (16.5%) reveals the fundamental challenge: circuits that "look right" to the model often don't exhibit the intended dynamics
+- Future work should explore curriculum learning, better simulation models, or hybrid approaches that maintain diversity while optimizing for phenotype accuracy
 
 ---
 
