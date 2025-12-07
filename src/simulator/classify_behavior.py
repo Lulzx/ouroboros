@@ -28,7 +28,7 @@ class BehaviorClassifier:
         self,
         num_initial_conditions: int = 20,
         max_steps: int = 200,
-        rule: str = "majority",
+        rule: str = "constitutive",
     ):
         """
         Initialize classifier.
@@ -36,7 +36,8 @@ class BehaviorClassifier:
         Args:
             num_initial_conditions: Number of initial states to test
             max_steps: Maximum simulation steps
-            rule: Boolean update rule
+            rule: Boolean update rule (default: "constitutive" for biologically
+                  accurate simulation of transcriptional regulation)
         """
         self.num_initial_conditions = num_initial_conditions
         self.max_steps = max_steps
@@ -69,7 +70,18 @@ class BehaviorClassifier:
             seed=seed,
         )
 
-        # Check for oscillations
+        # Check for bistability (toggle switch)
+        # Must have multiple fixed points AND mutual inhibition topology
+        if dynamics["num_fixed_points"] >= 2:
+            # Verify it has mutual inhibition (true toggle switch)
+            if self._has_mutual_inhibition(network):
+                return "toggle_switch", {
+                    "reason": "multiple_fixed_points_with_mutual_inhibition",
+                    "num_fixed_points": dynamics["num_fixed_points"],
+                    "fixed_points": dynamics["fixed_points"],
+                }
+
+        # Check for oscillations (only if not bistable)
         if dynamics["num_oscillations"] > 0:
             # Has oscillatory attractors
             periods = dynamics["oscillation_periods"]
@@ -82,43 +94,39 @@ class BehaviorClassifier:
                     "num_attractors": dynamics["num_attractors"],
                 }
 
-        # Check for bistability (toggle switch)
-        if dynamics["num_fixed_points"] >= 2:
-            return "toggle_switch", {
-                "reason": "multiple_fixed_points",
-                "num_fixed_points": dynamics["num_fixed_points"],
-                "fixed_points": dynamics["fixed_points"],
-            }
-
-        # Check for adaptation
-        rng = np.random.default_rng(seed)
-        adaptation_tests = []
-        for gene in network.genes[:3]:  # Test a few genes
-            result = test_adaptation(
-                network,
-                perturbation_gene=gene,
-                rule=self.rule,
-                rng=rng,
-            )
-            adaptation_tests.append(result)
-
-        if any(t["is_adaptive"] for t in adaptation_tests):
-            return "adaptation", {
-                "reason": "returns_to_baseline",
-                "tests": adaptation_tests,
-            }
-
-        # Check for pulse generator pattern (IFFL-like)
+        # Check for pulse generator pattern (IFFL-like) BEFORE adaptation
+        # IFFL also shows adaptation-like behavior, but the topology is specific
         if self._is_pulse_generator_topology(network):
             return "pulse_generator", {
                 "reason": "iffl_topology",
             }
 
-        # Check for amplifier pattern (cascade)
+        # Check for amplifier pattern (cascade) BEFORE adaptation
+        # Cascades are stable but shouldn't be classified as adaptation
         if self._is_amplifier_topology(network):
             return "amplifier", {
                 "reason": "cascade_topology",
             }
+
+        # Check for adaptation (only for non-cascade, non-IFFL circuits)
+        # Adaptation requires negative feedback that creates transient response
+        if self._has_negative_feedback_loop(network):
+            rng = np.random.default_rng(seed)
+            adaptation_tests = []
+            for gene in network.genes[:3]:  # Test a few genes
+                result = test_adaptation(
+                    network,
+                    perturbation_gene=gene,
+                    rule=self.rule,
+                    rng=rng,
+                )
+                adaptation_tests.append(result)
+
+            if any(t["is_adaptive"] for t in adaptation_tests):
+                return "adaptation", {
+                    "reason": "returns_to_baseline",
+                    "tests": adaptation_tests,
+                }
 
         # Default: stable
         return "stable", {
@@ -196,6 +204,64 @@ class BehaviorClassifier:
                     break
 
         return has_chain and not has_negative_feedback
+
+    def _has_mutual_inhibition(self, network: BooleanNetwork) -> bool:
+        """
+        Check if network has mutual inhibition (A inhibits B AND B inhibits A).
+
+        This is the hallmark of toggle switch topology.
+        """
+        for gene_a in network.genes:
+            for gene_b in network.genes:
+                if gene_a != gene_b:
+                    # Check if A inhibits B
+                    a_inhibits_b = gene_a in network.inhibitors.get(gene_b, [])
+                    # Check if B inhibits A
+                    b_inhibits_a = gene_b in network.inhibitors.get(gene_a, [])
+
+                    if a_inhibits_b and b_inhibits_a:
+                        return True
+        return False
+
+    def _has_negative_feedback_loop(self, network: BooleanNetwork) -> bool:
+        """
+        Check if network has a negative feedback loop.
+
+        A negative feedback loop is a cycle with an odd number of inhibitions.
+        This is required for true adaptation behavior.
+        """
+        # Look for cycles that contain at least one inhibition
+        for start_gene in network.genes:
+            # BFS to find cycles back to start
+            visited = set()
+            # Track (current_gene, inhibition_count)
+            queue = [(start_gene, 0)]
+
+            while queue:
+                current, inhib_count = queue.pop(0)
+                if current in visited and current != start_gene:
+                    continue
+
+                # Check outgoing edges
+                for target, activators in network.activators.items():
+                    if current in activators:
+                        if target == start_gene and inhib_count > 0:
+                            # Found cycle back to start with some inhibitions
+                            return True
+                        if target not in visited:
+                            queue.append((target, inhib_count))
+                            visited.add(target)
+
+                for target, inhibitors in network.inhibitors.items():
+                    if current in inhibitors:
+                        if target == start_gene:
+                            # Found cycle back to start through inhibition
+                            return True
+                        if target not in visited:
+                            queue.append((target, inhib_count + 1))
+                            visited.add(target)
+
+        return False
 
     def _is_downstream(
         self,
