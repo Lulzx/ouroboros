@@ -15,7 +15,7 @@ Ouroboros generates gene regulatory network (GRN) circuits conditioned on desire
 | **Topology-Only Learning** | **92.1%** | **True Learning** |
 | Template-Based | 99.8% | Retrieval |
 
-**Key achievement**: 92.1% accuracy through true learning using topology-derived features, without using oracle classification reasoning.
+**Key achievement**: True learning from topology-derived features, without oracle classification reasoning.
 
 ### Per-Phenotype Accuracy (Topology-Only Learning)
 
@@ -41,7 +41,7 @@ Ouroboros generates gene regulatory network (GRN) circuits conditioned on desire
 | Hill Climbing | 4.98ms | 100% | 18.2 | 2x |
 | Evolutionary | 10.73ms | 100% | 37.5 | 1x (baseline) |
 
-Template-based generation uses pre-verified topologies for guaranteed correctness. Topology NN uses the 92.1% accuracy neural classifier for fast inference.
+Template-based generation uses pre-verified topologies for guaranteed correctness. Topology NN uses neural classification for fast inference.
 
 ---
 
@@ -73,7 +73,7 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-### Train Topology Classifier (92.1% accuracy)
+### Train Topology Classifier
 
 ```bash
 python scripts/train_topology_final.py --epochs 300 --hidden-dim 192
@@ -147,7 +147,7 @@ Each circuit verified with boolean network simulation using the constitutive upd
 
 ## Key Findings
 
-1. **Topology encodes phenotype**: 92.1% accuracy proves that circuit structure determines dynamical behavior
+1. **Topology encodes phenotype**: High accuracy proves that circuit structure determines dynamical behavior
 
 2. **Feature engineering matters**: Extracting the right structural features (cycle parity, mutual inhibition, IFFL) enables high accuracy
 
@@ -162,7 +162,7 @@ Each circuit verified with boolean network simulation using the constitutive upd
 ```
 ouroboros/
 ├── scripts/
-│   ├── train_topology_final.py    # 92.1% accuracy classifier
+│   ├── train_topology_final.py    # Topology classifier
 │   ├── enumerate_circuits.py      # Generate verified database
 │   └── generate.py                # Circuit generation
 ├── src/
