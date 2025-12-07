@@ -269,6 +269,80 @@ class GRNTokenizer:
             "interactions": interactions,
         }
 
+    def is_valid_circuit(self, token_ids: list[int]) -> bool:
+        """
+        Check if a circuit is strictly valid.
+
+        A valid circuit must:
+        - Have at least one interaction
+        - Have source and target be gene tokens (not interaction tokens)
+        - Follow gene-interaction-gene triplet pattern
+        - Stop at EOS (no trailing garbage)
+        - Have exactly N*3 content tokens (complete triplets only)
+
+        Args:
+            token_ids: List of token IDs
+
+        Returns:
+            True if circuit is valid, False otherwise
+        """
+        # Get gene set (all tokens that are not special/interaction/phenotype)
+        special_tokens = {self.PAD_TOKEN, self.BOS_TOKEN, self.EOS_TOKEN, self.UNK_TOKEN}
+        interaction_set = set(self.INTERACTION_TOKENS)
+        phenotype_set = set(self.PHENOTYPE_TOKENS)
+
+        gene_set = set()
+        for token in self.token_to_id.keys():
+            if token not in special_tokens and token not in interaction_set and token not in phenotype_set:
+                gene_set.add(token)
+
+        # Decode tokens - stop at EOS
+        tokens = []
+        for tid in token_ids:
+            token = self.id_to_token.get(tid, self.UNK_TOKEN)
+            if token == self.EOS_TOKEN:
+                break  # Stop at EOS, ignore anything after
+            if token not in [self.PAD_TOKEN, self.BOS_TOKEN]:
+                tokens.append(token)
+
+        if not tokens:
+            return False
+
+        # Skip phenotype token
+        start_idx = 0
+        if tokens[0].startswith("<") and tokens[0].endswith(">"):
+            start_idx = 1
+
+        remaining = tokens[start_idx:]
+
+        # Must have at least 3 tokens for one interaction
+        if len(remaining) < 3:
+            return False
+
+        # Must have exactly N*3 tokens (complete triplets, no trailing tokens)
+        if len(remaining) % 3 != 0:
+            return False
+
+        # Check triplet pattern: gene-interaction-gene
+        valid_interactions = 0
+        for i in range(0, len(remaining), 3):
+            source = remaining[i]
+            interaction_type = remaining[i + 1]
+            target = remaining[i + 2]
+
+            # Source and target must be genes, not interactions or phenotypes
+            source_is_gene = source in gene_set
+            target_is_gene = target in gene_set
+            interaction_valid = interaction_type in interaction_set
+
+            if source_is_gene and target_is_gene and interaction_valid:
+                valid_interactions += 1
+            else:
+                # Invalid pattern
+                return False
+
+        return valid_interactions > 0
+
     def encode_batch(
         self,
         circuits: list[dict],

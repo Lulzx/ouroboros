@@ -230,7 +230,7 @@ class GRNTransformer(nn.Module):
         shift_labels = input_ids[:, 1:]
 
         # Compute log probabilities
-        log_probs = mx.log_softmax(shift_logits, axis=-1)
+        log_probs = shift_logits - mx.logsumexp(shift_logits, axis=-1, keepdims=True)
 
         # Gather log probs for actual tokens
         B, L, V = log_probs.shape
@@ -269,7 +269,7 @@ class GRNTransformer(nn.Module):
         shift_labels = input_ids[:, 1:]
 
         # Compute log probabilities
-        log_probs = mx.log_softmax(shift_logits, axis=-1)
+        log_probs = shift_logits - mx.logsumexp(shift_logits, axis=-1, keepdims=True)
 
         # Gather log probs for actual tokens
         B, L, V = log_probs.shape
@@ -284,7 +284,18 @@ class GRNTransformer(nn.Module):
     @property
     def num_parameters(self) -> int:
         """Count total parameters."""
-        return sum(p.size for p in self.parameters().values())
+        def count_params(params):
+            total = 0
+            if isinstance(params, dict):
+                for v in params.values():
+                    total += count_params(v)
+            elif isinstance(params, list):
+                for v in params:
+                    total += count_params(v)
+            elif hasattr(params, 'size'):
+                total += params.size
+            return total
+        return count_params(self.parameters())
 
 
 def create_model(
