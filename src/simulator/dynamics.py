@@ -72,8 +72,9 @@ def simulate(
     is_fixed_point = False
 
     if cycle_start is not None:
-        attractor = trajectory[cycle_start:]
-        is_fixed_point = len(attractor) == 1
+        # Attractor is the unique states in the cycle (not including duplicates)
+        attractor = trajectory[cycle_start : cycle_start + cycle_length]
+        is_fixed_point = cycle_length == 1
 
     return SimulationResult(
         trajectory=trajectory,

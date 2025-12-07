@@ -140,7 +140,12 @@ class BooleanNetwork:
         Args:
             gene: Gene name
             state: Current state dictionary {gene: 0|1}
-            rule: Update rule - "majority", "activation_wins", or "inhibition_wins"
+            rule: Update rule:
+                - "majority": majority of regulators wins
+                - "activation_wins": inhibitors block, else activators activate
+                - "inhibition_wins": any inhibitor turns gene off
+                - "constitutive": genes are ON by default, repressed by inhibitors
+                  (biologically accurate for transcriptional regulation)
 
         Returns:
             Next state (0 or 1)
@@ -153,11 +158,40 @@ class BooleanNetwork:
             state.get(i, 0) for i in self.inhibitors.get(gene, [])
         )
 
-        # No regulators: maintain current state
-        if active_activators == 0 and active_inhibitors == 0:
-            return state.get(gene, 0)
+        has_activators = len(self.activators.get(gene, [])) > 0
+        has_inhibitors = len(self.inhibitors.get(gene, [])) > 0
 
-        if rule == "majority":
+        if rule == "constitutive":
+            # Biologically accurate rule:
+            # - Genes with only inhibitors: ON by default, OFF when repressed
+            # - Genes with only activators: OFF by default, ON when activated
+            # - Genes with both: ON if activators > inhibitors
+            # - Genes with no regulators: maintain state
+
+            if not has_activators and not has_inhibitors:
+                return state.get(gene, 0)
+
+            if not has_activators:
+                # Only inhibitors: constitutively ON, repressed when inhibited
+                return 0 if active_inhibitors > 0 else 1
+
+            if not has_inhibitors:
+                # Only activators: OFF unless activated
+                return 1 if active_activators > 0 else 0
+
+            # Both activators and inhibitors: compare counts
+            if active_activators > active_inhibitors:
+                return 1
+            elif active_inhibitors > active_activators:
+                return 0
+            else:
+                # Tie: activators win (gene is expressed)
+                return 1 if active_activators > 0 else 0
+
+        elif rule == "majority":
+            # No regulators: maintain current state
+            if active_activators == 0 and active_inhibitors == 0:
+                return state.get(gene, 0)
             # Majority rule
             if active_activators > active_inhibitors:
                 return 1
