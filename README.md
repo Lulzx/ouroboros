@@ -476,13 +476,47 @@ We explored multiple GRPO variants for reinforcement learning:
 | amplifier | 54.0% | 100% |
 | stable | 88.0% | 100% |
 
+### Graph Neural Network Approach
+
+We explored dynamics-informed Graph Neural Networks (GNNs) to move beyond sequence-based representations:
+
+**Key insight**: Circuits are graphs, not sequences. The same circuit can be written in multiple equivalent orderings, but they represent the same topology. GNNs are naturally permutation equivariant, addressing this fundamental mismatch.
+
+**Approach**:
+1. Represent circuits as signed adjacency matrices (activation=+1, inhibition=-1)
+2. Use message passing to propagate information between genes
+3. Separate handling for activation and inhibition edges
+4. Add structural features (mutual inhibition, cycles, cascades)
+5. Add simulation-derived features (cycle detection, fixed points)
+
+**Results**:
+
+| Model | Overall Accuracy | Model-Oracle | Oscillator | Toggle Switch | Amplifier |
+|-------|------------------|--------------|------------|---------------|-----------|
+| MLP Baseline | 47.5% | - | 56.5% | 50.0% | 60.5% |
+| GNN v3 (Message Passing) | 66.0% | 69.3% | 39.0% | 81.0% | 96.0% |
+| GNN v4 (+ Structural Features) | 67.2% | 68.2% | 52.0% | 73.0% | 90.0% |
+| GNN v5 (+ Simulation Features) | **68.1%** | 66.2% | 47.5% | **85.5%** | **93.0%** |
+| Template-Based | 99.8% | 100% | 100% | 100% | 100% |
+
+**Per-phenotype accuracy (GNN v5)**:
+- stable: 81.5%
+- toggle_switch: 85.5%
+- amplifier: 93.0%
+- adaptation: 56.5%
+- oscillator: 47.5%
+- pulse_generator: 44.5%
+
+**Analysis**:
+The GNN approach improves significantly over sequence-based models (68% vs 50%), but oscillator remains challenging. The key difficulty is that oscillators require specific feedback loop structures (negative feedback cycles) which are harder to detect than mutual inhibition (toggle switch) or cascades (amplifier).
+
 ### Key Findings
 
-1. **Exhaustive enumeration reveals ground truth**: By testing all small circuits, we discovered exactly what patterns work for each phenotype.
+1. **Graph representation outperforms sequence representation**: GNNs achieve 68% accuracy vs 50% for sequence-based transformers, validating that graphs are the correct representation.
 
 2. **Template-based generation is a practical workaround**: Sampling from pre-verified topologies guarantees correctness but is not learned generalization - it's database lookup with combinatorial gene assignment.
 
-3. **Neural models plateau at ~50% accuracy**: Even with expert iteration and GRPO, neural models struggle with phenotypes requiring specific topological structures. This is a fundamental limitation: neural models learn smooth distributions that assign probability mass to invalid structures.
+3. **Neural models plateau at ~68% accuracy with GNNs**: Even with structural and simulation features, neural models struggle with phenotypes requiring complex topological patterns (especially oscillators). This appears to be a fundamental limitation of learning from topology alone - dynamics matter.
 
 4. **GRPO can only refine, not discover**: Reinforcement learning improves what the model already knows but cannot discover entirely new structural patterns. For toggle_switch (requires mutual inhibition) and pulse_generator (requires IFFL), neural models need explicit structural guidance.
 
@@ -531,8 +565,10 @@ ouroboros/
 │   ├── data/                   # Tokenization and datasets
 │   │   ├── tokenizer.py
 │   │   └── dataset.py
-│   ├── model/                  # Transformer architecture
-│   │   └── transformer.py
+│   ├── model/                  # Model architectures
+│   │   ├── transformer.py      # Sequence-based autoregressive
+│   │   ├── graph_dynamics.py   # Dynamics-informed GNN
+│   │   └── graph_generator.py  # Graph-based circuit generator
 │   ├── simulator/              # Boolean network simulation
 │   │   ├── boolean_network.py
 │   │   ├── dynamics.py
