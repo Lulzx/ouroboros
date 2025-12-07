@@ -84,19 +84,29 @@ class SelfClassifier:
         intended_phenotype_ids: mx.array,
     ) -> mx.array:
         """
-        Compute rewards based on self-classification agreement.
+        Compute rewards based on self-classification agreement and validity.
 
         Args:
             sequences: Generated sequences of shape (batch, seq_len)
             intended_phenotype_ids: The phenotype each sequence was generated for
 
         Returns:
-            Rewards of shape (batch,) - 1.0 if match, 0.0 otherwise
+            Rewards of shape (batch,) - 1.0 if valid and match, 0.0 otherwise
         """
         predicted_ids, _ = self.classify(sequences)
 
-        # Reward is 1 if prediction matches intended phenotype
-        rewards = (predicted_ids == intended_phenotype_ids).astype(mx.float32)
+        # Check validity for each sequence
+        batch_size = sequences.shape[0]
+        validity_mask = []
+        for i in range(batch_size):
+            token_ids = sequences[i].tolist()
+            is_valid = self.tokenizer.is_valid_circuit(token_ids)
+            validity_mask.append(1.0 if is_valid else 0.0)
+        validity_mask = mx.array(validity_mask)
+
+        # Reward is 1 only if valid AND prediction matches intended phenotype
+        classification_match = (predicted_ids == intended_phenotype_ids).astype(mx.float32)
+        rewards = classification_match * validity_mask
 
         return rewards
 
@@ -426,7 +436,23 @@ class GRPOTrainer:
         if path is None:
             path = self.checkpoint_dir / f"checkpoint_step{self.step}.safetensors"
 
-        mx.save_safetensors(str(path), dict(self.model.parameters()))
+        # Flatten nested dict for safetensors
+        def flatten_params(params, prefix=""):
+            flat = {}
+            if isinstance(params, dict):
+                for k, v in params.items():
+                    new_key = f"{prefix}.{k}" if prefix else k
+                    flat.update(flatten_params(v, new_key))
+            elif isinstance(params, list):
+                for i, v in enumerate(params):
+                    new_key = f"{prefix}.{i}" if prefix else str(i)
+                    flat.update(flatten_params(v, new_key))
+            else:
+                flat[prefix] = params
+            return flat
+
+        flat_weights = flatten_params(self.model.parameters())
+        mx.save_safetensors(str(path), flat_weights)
 
         state = {
             "step": self.step,

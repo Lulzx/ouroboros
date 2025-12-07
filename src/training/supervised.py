@@ -173,8 +173,23 @@ class SupervisedTrainer:
         if path is None:
             path = self.checkpoint_dir / f"checkpoint_epoch{self.epoch}.safetensors"
 
-        # Save model weights
-        mx.save_safetensors(str(path), dict(self.model.parameters()))
+        # Save model weights - flatten nested dict for safetensors
+        def flatten_params(params, prefix=""):
+            flat = {}
+            if isinstance(params, dict):
+                for k, v in params.items():
+                    new_key = f"{prefix}.{k}" if prefix else k
+                    flat.update(flatten_params(v, new_key))
+            elif isinstance(params, list):
+                for i, v in enumerate(params):
+                    new_key = f"{prefix}.{i}" if prefix else str(i)
+                    flat.update(flatten_params(v, new_key))
+            else:
+                flat[prefix] = params
+            return flat
+
+        flat_weights = flatten_params(self.model.parameters())
+        mx.save_safetensors(str(path), flat_weights)
 
         # Save training state
         state = {
@@ -197,7 +212,7 @@ class SupervisedTrainer:
 
         if is_best:
             best_path = self.checkpoint_dir / "best.safetensors"
-            mx.save_safetensors(str(best_path), dict(self.model.parameters()))
+            mx.save_safetensors(str(best_path), flat_weights)
             with open(best_path.with_suffix(".json"), "w") as f:
                 json.dump(state, f, indent=2)
 
