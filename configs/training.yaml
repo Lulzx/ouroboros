@@ -15,12 +15,12 @@ grpo:
   weight_decay: 0.01
   kl_coef: 0.1
   training_steps: 5000
-  eval_interval: 100
-  checkpoint_interval: 500
+  eval_interval: 50
+  checkpoint_interval: 50
 
 # Oracle GRPO configuration
 oracle_grpo:
-  self_class_weight: 0.5
-  oracle_weight: 0.5
+  self_class_weight: 0.2
+  oracle_weight: 0.8
   simulation_steps: 100
   num_initial_conditions: 10

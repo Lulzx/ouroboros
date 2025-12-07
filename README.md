@@ -322,15 +322,45 @@ python scripts/evaluate.py --checkpoint checkpoints/grpo/best
 
 ## Results
 
-Results will be reported after completion of training experiments.
+### Main Results
 
 | Metric | Supervised | + Self-GRPO | + Oracle-GRPO |
 |--------|------------|-------------|---------------|
-| Self-Consistency | - | - | - |
-| Oracle Consistency | - | - | - |
-| Diversity | - | - | - |
-| Novelty | - | - | - |
-| Validity | - | - | - |
+| Self-Consistency | 0.537 | 0.780* | 0.337 |
+| Oracle Consistency | 0.165 | 0.168 | 0.202 |
+| Diversity | 13.06 | 27.62* | 6.22 |
+| Novelty | 0.978 | 1.000 | 0.988 |
+| Validity | 1.000 | 0.985* | 1.000 |
+
+*Self-GRPO achieved high self-consistency through degenerate token patterns (interaction tokens used as genes), not valid circuits.
+
+### Per-Phenotype Self-Consistency (Supervised)
+
+| Phenotype | Accuracy |
+|-----------|----------|
+| Oscillator | 0.710 |
+| Toggle Switch | 0.630 |
+| Adaptation | 0.590 |
+| Pulse Generator | 0.440 |
+| Amplifier | 0.260 |
+| Stable | 0.590 |
+
+### Key Findings
+
+1. **Supervised pretraining works well**: The model learns to generate valid, diverse circuits that self-classify correctly 54% of the time.
+
+2. **Self-classification GRPO is vulnerable to reward hacking**: Without validity constraints, the model discovers degenerate patterns (`inhibits⊣inhibits`) that achieve high self-consistency but are semantically meaningless.
+
+3. **Oracle reward is sparse**: The boolean network simulator classifies most circuits as "stable" unless they contain specific feedback structures. This makes RL optimization difficult for non-stable phenotypes.
+
+4. **Mode collapse under RL**: Both GRPO variants eventually collapse to generating limited patterns (primarily oscillator-like or stable-like circuits regardless of the intended phenotype).
+
+### Lessons Learned
+
+- Validity constraints must be part of the reward function, not just evaluation
+- Self-classification alone is insufficient; external grounding (oracle) is necessary but challenging
+- The simulator's harsh classification creates sparse rewards that impede learning
+- Curriculum learning or reward shaping may be needed for complex phenotypes
 
 ---
 
